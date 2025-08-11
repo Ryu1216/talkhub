@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - users can only read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Posts collection
+    match /posts/{postId} {
+      // Anyone authenticated can read posts
+      allow read: if request.auth != null;
+      
+      // Only authenticated users can create posts
+      allow create: if request.auth != null 
+        && request.auth.uid == resource.data.authorId
+        && validatePostData(resource.data);
+      
+      // Only the author can update/delete their posts
+      allow update, delete: if request.auth != null 
+        && request.auth.uid == resource.data.authorId;
+    }
+    
+    // Comments collection
+    match /comments/{commentId} {
+      // Anyone authenticated can read comments
+      allow read: if request.auth != null;
+      
+      // Only authenticated users can create comments
+      allow create: if request.auth != null 
+        && request.auth.uid == resource.data.authorId
+        && validateCommentData(resource.data);
+      
+      // Only the author can update/delete their comments
+      allow update, delete: if request.auth != null 
+        && request.auth.uid == resource.data.authorId;
+    }
+    
+    // Validation functions
+    function validatePostData(data) {
+      return data.keys().hasAll(['title', 'content', 'authorId', 'authorName', 'createdAt', 'updatedAt', 'commentCount'])
+        && data.title is string
+        && data.title.size() > 0
+        && data.title.size() <= 200
+        && data.content is string
+        && data.content.size() > 0
+        && data.content.size() <= 5000
+        && data.authorId is string
+        && data.authorName is string
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.commentCount is number
+        && data.commentCount >= 0
+        && (data.imageUrl == null || data.imageUrl is string);
+    }
+    
+    function validateCommentData(data) {
+      return data.keys().hasAll(['postId', 'content', 'authorId', 'authorName', 'createdAt'])
+        && data.postId is string
+        && data.content is string
+        && data.content.size() > 0
+        && data.content.size() <= 1000
+        && data.authorId is string
+        && data.authorName is string
+        && data.createdAt is timestamp;
+    }
+  }
+}
